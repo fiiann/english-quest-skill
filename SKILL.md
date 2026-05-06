@@ -161,6 +161,21 @@ XP to next level = `level * 100` (exponential)
 
 **Level Down:** If XP drops below current level's threshold AND level > 1, drop one level. No XP floor below 0.
 
+## Difficulty Progression (CEFR Bands)
+
+Sentences are automatically selected based on your **Overall Level**. Every 3 levels = one CEFR band.
+
+| Your Level | CEFR | Badge | Example |
+|---|---|---|---|
+| 1–3 | 🟢 A1 Beginner | Short 3–6 word sentences | "I am from Indonesia." |
+| 4–6 | 🟡 A2 Elementary | 5–8 words, basic tenses | "I have been living here for two years." |
+| 7–9 | 🟠 B1 Intermediate | 7–12 words, present perfect, modals | "I have never been to Japan before." |
+| 10–12 | 🔴 B2 Upper-Intermediate | 10–15 words, complex structures | "I cannot imagine living without good public transport." |
+| 13–15 | 🟣 C1 Advanced | 12–18 words, sophisticated vocabulary | "I must confess I have developed an inexplicable fondness..." |
+| 16–18 | ⚫ C2 Proficient | 15–25 words, native-like complexity | "Were it not for his insatiable curiosity, the breakthrough would never have occurred." |
+
+**±1 Band Rule:** To keep variety fun, the system also picks from sentences **one band above or below** your target level. So at Level 5 (A2), you'll mostly get A2 sentences but also some A1 and B1 for variety!
+
 ## Error Monsters (Error Types → Monsters)
 
 | Monster | Error Type | Example | XP Reward |

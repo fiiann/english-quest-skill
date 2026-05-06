@@ -39,6 +39,7 @@ from engine import (
     format_quiz_question,
     SKILL_COMPONENTS, get_skill_profile, get_overall_level,
     calculate_shadowing_scores, award_skill_xp,
+    CEFR_EMOJI, CEFR_NAME, filter_sentences_by_level,
 )
 import random
 
@@ -73,22 +74,40 @@ def cmd_sentence(topic: str):
 
     sp = state["skill_progress"].get(topic, {"attempted": 0})
     all_sents = SENTENCES[topic]
+    player_level = state["player"].get("level", 1)
+
+    # Filter by CEFR level for this player's level FIRST
+    filtered = filter_sentences_by_level(all_sents, player_level)
+    if not filtered:
+        filtered = all_sents  # fallback if no match
+
+    # Build index map: sentence → original index in all_sents
+    idx_map = {id(s): all_sents.index(s) for s in filtered}
 
     # Pick a sentence not yet mastered (prefer unmastered)
-    unmastered = [s for s in all_sents if all_sents.index(s) >= sp["attempted"]]
+    unmastered = [s for s in filtered if idx_map[id(s)] >= sp["attempted"]]
     if not unmastered:
         # Reset progress for this topic
         state["skill_progress"][topic]["attempted"] = 0
         state["skill_progress"][topic]["mastered"] = 0
         state["skill_progress"][topic]["perfect"] = 0
         save_state(state)
-        unmastered = all_sents
+        unmastered = filtered
 
-    sentence, meaning = random.choice(unmastered)
+    chosen = random.choice(unmastered)
+    sentence = chosen[0]
+    meaning = chosen[1]
+    cefr = chosen[2] if len(chosen) > 2 else "A1"
+    cefr_emoji = CEFR_EMOJI.get(cefr, "🟢")
+
     return {
         "sentence": sentence,
         "meaning": meaning,
         "topic": topic,
+        "cefr": cefr,
+        "cefr_emoji": cefr_emoji,
+        "cefr_name": CEFR_NAME.get(cefr, "Beginner"),
+        "player_level": player_level,
     }
 
 

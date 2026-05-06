@@ -19,97 +19,232 @@ STATE_FILE = Path("/home/ubuntu/.hermes/profiles/elias-strategist/rpg/shadowing_
 # ──────────────────────────────────────────────
 #  SENTENCE BANK
 # ──────────────────────────────────────────────
+# Format: (sentence, meaning, cefr_level)
+# CEFR levels: A1, A2, B1, B2, C1, C2
 SENTENCES = {
     "greetings": [
-        ("Hello, my name is Maria.", "Halo, nama saya Maria."),
-        ("Nice to meet you.", "Senang berkenalan denganmu."),
-        ("How are you today?", "Apa kabar hari ini?"),
-        ("I am from Indonesia.", "Saya dari Indonesia."),
-        ("I live in Jakarta.", "Saya tinggal di Jakarta."),
-        ("I am a student.", "Saya seorang pelajar."),
-        ("I am twenty years old.", "Saya berumur dua puluh tahun."),
-        ("What is your name?", "Siapa namamu?"),
-        ("Where are you from?", "Kamu dari mana?"),
-        ("I am pleased to meet you.", "Senang bertemu denganmu."),
+        # A1 (Levels 1-3)
+        ("Hello.", "Halo.", "A1"),
+        ("My name is David.", "Nama saya David.", "A1"),
+        ("Nice to meet you.", "Senang berkenalan.", "A1"),
+        ("I am from Indonesia.", "Saya dari Indonesia.", "A1"),
+        ("Where are you from?", "Kamu dari mana?", "A1"),
+        # A2 (Levels 4-6)
+        ("I am pleased to meet you.", "Senang bertemu dengan Anda.", "A2"),
+        ("How have you been lately?", "Bagaimana kabarmu akhir-akhir ini?", "A2"),
+        ("It is great to see you again.", "Senang melihat Anda lagi.", "A2"),
+        ("I have been living here for two years.", "Saya sudah tinggal di sini selama dua tahun.", "A2"),
+        # B1 (Levels 7-9)
+        ("I would like to introduce myself.", "Saya ingin memperkenalkan diri.", "B1"),
+        ("I have been working here since 2020.", "Saya sudah bekerja di sini sejak 2020.", "B1"),
+        ("It was nice meeting you at the conference.", "Senang bertemu Anda di konferensi.", "B1"),
+        # B2 (Levels 10-12)
+        ("I have been meaning to get in touch with you.", "Saya sudah bermaksud menghubungi Anda.", "B2"),
+        ("I cannot thank you enough for your hospitality.", "Saya tidak bisa cukup mengucapkan terima kasih untuk keramahtamahan Anda.", "B2"),
+        # C1+ (Levels 13+)
+        ("I must say it is a pleasure to make your acquaintance.", "Saya harus mengatakan ini adalah suatu kehormatan untuk berkenalan dengan Anda.", "C1"),
     ],
     "numbers": [
-        ("There are five apples.", "Ada lima apel."),
-        ("It costs ten dollars.", "Harganya sepuluh dolar."),
-        ("I have twenty books.", "Saya punya dua puluh buku."),
-        ("The price is fifteen euros.", "Harganya lima belas euro."),
-        ("Three plus four equals seven.", "Tiga ditambah empat sama dengan tujuh."),
+        # A1
+        ("There are five apples.", "Ada lima apel.", "A1"),
+        ("It costs ten dollars.", "Harganya sepuluh dolar.", "A1"),
+        ("I have twenty books.", "Saya punya dua puluh buku.", "A1"),
+        # A2
+        ("The price is fifteen euros.", "Harganya lima belas euro.", "A2"),
+        ("Three plus four equals seven.", "Tiga ditambah empat sama dengan tujuh.", "A2"),
+        ("I saved half of my salary.", "Saya menyimpan setengah dari gaji saya.", "A2"),
+        # B1
+        ("Approximately three hundred people attended.", "Sekitar tiga ratus orang menghadiri.", "B1"),
+        ("The population has increased by twelve percent.", "Populasi telah meningkat dua belas persen.", "B1"),
+        # B2
+        ("The ratio of men to women is roughly two to one.", "Rasio pria terhadap wanita sekitar dua banding satu.", "B2"),
+        ("I would estimate the cost at around fifty thousand dollars.", "Saya memperkirakan biaya sekitar lima puluh ribu dolar.", "B2"),
+        # C1+
+        ("The figures reveal a staggering forty-seven percent increase.", "Angka-angka menunjukkan peningkatan yang mengerikan empat puluh tujuh persen.", "C1"),
     ],
     "time": [
-        ("It is eight o'clock.", "Jam delapan."),
-        ("The meeting starts at nine.", "Rapat dimulai jam sembilan."),
-        ("Today is Monday, June second.", "Hari ini Senin, tanggal dua Juni."),
-        ("I wake up at six thirty.", "Saya bangun jam setengah tujuh."),
-        ("Lunch is at twelve fifteen.", "Makan siang jam dua belas limabelas."),
+        # A1
+        ("It is eight o'clock.", "Jam delapan.", "A1"),
+        ("Today is Monday.", "Hari ini Senin.", "A1"),
+        # A2
+        ("The meeting starts at nine.", "Rapat dimulai jam sembilan.", "A2"),
+        ("I wake up at six thirty.", "Saya bangun jam setengah tujuh.", "A2"),
+        ("Lunch is at twelve fifteen.", "Makan siang jam dua belas limabelas.", "A2"),
+        # B1
+        ("I have been waiting for over an hour.", "Saya sudah menunggu lebih dari satu jam.", "B1"),
+        ("The train departs in fifteen minutes.", "Kereta berangkat dalam lima belas menit.", "B1"),
+        # B2
+        ("By the time you read this, I will have left.", "Pada saat Anda membaca ini, saya akan sudah pergi.", "B2"),
+        ("It has been ages since we last spoke.", "Sudah lama sekali sejak kita terakhir berbicara.", "B2"),
+        # C1+
+        ("Had I known you were coming, I would have prepared something.", "Seandainya saya tahu Anda akan datang, saya akan telah menyiapkan sesuatu.", "C1"),
     ],
     "daily_routine": [
-        ("I wake up at six o'clock every morning.", "Saya bangun jam enam setiap pagi."),
-        ("I eat breakfast before school.", "Saya sarapan sebelum sekolah."),
-        ("I go to school by bus.", "Saya pergi ke sekolah naik bus."),
-        ("I finish school at three p.m.", "Saya selesai sekolah jam tiga sore."),
-        ("I usually have dinner at seven.", "Saya biasanya makan malam jam tujuh."),
-        ("I brush my teeth twice a day.", "Saya menyikat gigi dua kali sehari."),
-        ("I sleep at ten o'clock every night.", "Saya tidur jam sepuluh setiap malam."),
-        ("What time do you usually wake up?", "Jam berapa kamu biasanya bangun?"),
+        # A1
+        ("I wake up at six o'clock.", "Saya bangun jam enam.", "A1"),
+        ("I eat breakfast every morning.", "Saya sarapan setiap pagi.", "A1"),
+        # A2
+        ("I go to school by bus.", "Saya pergi ke sekolah naik bus.", "A2"),
+        ("I brush my teeth twice a day.", "Saya menyikat gigi dua kali sehari.", "A2"),
+        ("What time do you usually wake up?", "Jam berapa kamu biasanya bangun?", "A2"),
+        # B1
+        ("I have been working out every day this month.", "Saya sudah olahraga setiap hari bulan ini.", "B1"),
+        ("I used to sleep earlier before I started working.", "Saya biasanya tidur lebih awal sebelum saya mulai bekerja.", "B1"),
+        # B2
+        ("I have gotten into the habit of meditating before bed.", "Saya telah terbiasa bermeditasi sebelum tidur.", "B2"),
+        ("I find myself becoming increasingly productive in the mornings.", "Saya mendapati diri saya semakin produktif di pagi hari.", "B2"),
+        # C1+
+        ("Were it not for my morning routine, I would be far less efficient.", "Jika bukan karena rutinitas pagi saya, saya akan jauh lebih tidak efisien.", "C1"),
     ],
     "food": [
-        ("I like rice and chicken for lunch.", "Saya suka nasi dan ayam untuk makan siang."),
-        ("I drink water every day.", "Saya minum air setiap hari."),
-        ("Do you want some tea or coffee?", "Kamu mau teh atau kopi?"),
-        ("This food is very delicious.", "Makanan ini sangat enak."),
-        ("I am hungry. Let's eat something.", "Saya lapar. Mari makan sesuatu."),
-        ("My favorite fruit is mango.", "Buah favorit saya mangga."),
-        ("I never drink soda.", "Saya tidak pernah minum soda."),
+        # A1
+        ("I like rice and chicken.", "Saya suka nasi dan ayam.", "A1"),
+        ("I drink water every day.", "Saya minum air setiap hari.", "A1"),
+        # A2
+        ("Do you want some tea or coffee?", "Kamu mau teh atau kopi?", "A2"),
+        ("I am hungry. Let's eat something.", "Saya lapar. Mari makan sesuatu.", "A2"),
+        ("I never drink soda.", "Saya tidak pernah minum soda.", "A2"),
+        ("My favorite fruit is mango.", "Buah favorit saya mangga.", "A2"),
+        # B1
+        ("I have been craving Italian food lately.", "Saya akhir-akhir ini sangat ingin makanan Italia.", "B1"),
+        ("I would rather have salad than dessert.", "Saya lebih suka salad daripada hidangan penutup.", "B1"),
+        # B2
+        ("I have grown accustomed to eating out at least twice a week.", "Saya sudah terbiasa makan di luar setidaknya dua kali seminggu.", "B2"),
+        ("Nothing beats a home-cooked meal.", "Tidak ada yang menandingi makanan yang dimasak di rumah.", "B2"),
+        # C1+
+        ("I must confess I have developed an inexplicable fondness for experimental cuisine.", "Saya harus mengakui saya telah mengembangkan kecintaan yang tidak dapat dijelaskan terhadap masakan eksperimental.", "C1"),
     ],
     "shopping": [
-        ("How much is this shirt?", "Berapa harga kaos ini?"),
-        ("I would like to buy this dress.", "Saya ingin membeli gaun ini."),
-        ("Do you have a smaller size?", "Apakah ada ukuran yang lebih kecil?"),
-        ("Can I pay by card?", "Boleh bayar dengan kartu?"),
-        ("Where is the fitting room?", "Di mana ruang pas?"),
-        ("Is there a sale today?", "Ada diskon hari ini?"),
+        # A1
+        ("How much is this shirt?", "Berapa harga kaos ini?", "A1"),
+        ("I want to buy apples.", "Saya ingin membeli apel.", "A1"),
+        # A2
+        ("I would like to buy this dress.", "Saya ingin membeli gaun ini.", "A2"),
+        ("Do you have a smaller size?", "Apakah ada ukuran yang lebih kecil?", "A2"),
+        ("Can I pay by card?", "Boleh bayar dengan kartu?", "A2"),
+        # B1
+        ("Is there any chance you could give me a discount?", "Apakah ada kemungkinan Anda bisa memberikan diskon?", "B1"),
+        ("I was wondering if you have this in another color.", "Saya bertanya-tanya apakah Anda punya ini dalam warna lain.", "B1"),
+        # B2
+        ("I would be most grateful if you could consider a bulk discount.", "Saya akan sangat berterima kasih jika Anda dapat mempertimbangkan diskon grosir.", "B2"),
+        ("This is beyond my budget, I am afraid.", "Ini di luar anggaran saya, saya takut.", "B2"),
+        # C1+
+        ("I hate to bargain, but surely you can do better than that.", "Saya benci menawar, tapi pasti Anda bisa lebih baik dari itu.", "C1"),
     ],
     "directions": [
-        ("Excuse me, where is the bathroom?", "Permisi, di mana kamar mandi?"),
-        ("Turn left at the corner.", "Belok kiri di pojok."),
-        ("Go straight for two blocks.", "Jalan lurus dua blok."),
-        ("The bank is next to the supermarket.", "Bank di samping supermarket."),
-        ("Is it far from here?", "Jauh dari sini?"),
-        ("Can you show me on the map?", "Bisa tunjukkan di peta?"),
+        # A1
+        ("Where is the bathroom?", "Di mana kamar mandi?", "A1"),
+        ("Turn left.", "Belok kiri.", "A1"),
+        # A2
+        ("Turn left at the corner.", "Belok kiri di pojok.", "A2"),
+        ("Go straight for two blocks.", "Jalan lurus dua blok.", "A2"),
+        ("Is it far from here?", "Jauh dari sini?", "A2"),
+        # B1
+        ("Could you tell me how to get to the station?", "Bisa Anda beritahu saya cara ke stasiun?", "B1"),
+        ("Keep going until you see the traffic lights.", "Terus berjalan sampai Anda melihat lampu lalu lintas.", "B1"),
+        # B2
+        ("Take the second exit at the roundabout.", "Ambil pintu keluar kedua di bundaran.", "B2"),
+        ("It is within walking distance from here.", "Ini dalam jarak berjalan kaki dari sini.", "B2"),
+        # C1+
+        ("Head southbound on Fifth Avenue until you reach the cathedral.", "Berjalanlah ke selatan di Jalan Kelima sampai Anda mencapai katedral.", "C1"),
     ],
     "work": [
-        ("I work as a software engineer.", "Saya bekerja sebagai insinyur perangkat lunak."),
-        ("I have a meeting at ten a.m.", "Saya ada rapat jam sepuluh pagi."),
-        ("I send emails to my clients.", "Saya mengirim email ke klien saya."),
-        ("I am responsible for sales.", "Saya bertanggung jawab atas penjualan."),
-        ("What do you do for a living?", "Apa pekerjaanmu?"),
+        # A1
+        ("I am a student.", "Saya seorang pelajar.", "A1"),
+        ("I go to work.", "Saya pergi kerja.", "A1"),
+        # A2
+        ("I have a meeting at ten a.m.", "Saya ada rapat jam sepuluh pagi.", "A2"),
+        ("I send emails to my clients.", "Saya mengirim email ke klien saya.", "A2"),
+        # B1
+        ("I have been promoted to manager.", "Saya telah dipromosikan menjadi manajer.", "B1"),
+        ("I am responsible for the marketing department.", "Saya bertanggung jawab atas departemen pemasaran.", "B1"),
+        # B2
+        ("I have been meaning to discuss my career development with you.", "Saya sudah bermaksud membahas pengembangan karir saya dengan Anda.", "B2"),
+        ("I work well under pressure.", "Saya bekerja dengan baik di bawah tekanan.", "B2"),
+        # C1+
+        ("I have grown increasingly disillusioned with corporate culture.", "Saya semakin kecewa dengan budaya korporat.", "C1"),
     ],
     "travel": [
-        ("I am traveling to Tokyo next month.", "Saya akan bepergian ke Tokyo bulan depan."),
-        ("I booked a hotel near the airport.", "Saya sudah pesan hotel dekat bandara."),
-        ("Do I need a visa for that country?", "Apakah saya butuh visa untuk negara itu?"),
-        ("My flight departs at six in the morning.", "Penerbanganku berangkat jam enam pagi."),
-        ("I prefer to travel by train.", "Saya lebih suka bepergian dengan kereta."),
+        # A1
+        ("I go to school.", "Saya pergi ke sekolah.", "A1"),
+        ("I am traveling to Bali.", "Saya akan bepergian ke Bali.", "A1"),
+        # A2
+        ("I booked a hotel near the airport.", "Saya sudah pesan hotel dekat bandara.", "A2"),
+        ("My flight departs at six.", "Penerbanganku berangkat jam enam.", "A2"),
+        # B1
+        ("I have never been to Japan before.", "Saya belum pernah ke Jepang sebelumnya.", "B1"),
+        ("I would love to travel more often.", "Saya sangat ingin lebih sering bepergian.", "B1"),
+        # B2
+        ("I have always dreamed of backpacking through Europe.", "Saya selalu bermimpi pergi背包旅行 melalui Eropa.", "B2"),
+        ("I cannot imagine living in a place without good public transport.", "Saya tidak bisa membayangkan tinggal di tempat tanpa transportasi umum yang baik.", "B2"),
+        # C1+
+        ("Were I to win the lottery, I would undoubtedly spend half the year traveling.", "Jika saya memenangkan lotre, saya akan menghabiskan setengah tahun untuk bepergian.", "C1"),
     ],
     "weather": [
-        ("What is the weather like today?", "Bagaimana cuaca hari ini?"),
-        ("It is sunny and warm today.", "Hari ini cerah dan hangat."),
-        ("I think it will rain tomorrow.", "Saya pikir besok akan hujan."),
-        ("The forecast says it will be cloudy.", "Prakiraan cuaca bilang akan berawan."),
-        ("I love the cool weather in the morning.", "Saya suka cuaca sejuk di pagi hari."),
+        # A1
+        ("It is sunny.", "Hari ini cerah.", "A1"),
+        ("It is raining.", "Sedang hujan.", "A1"),
+        # A2
+        ("It is sunny and warm today.", "Hari ini cerah dan hangat.", "A2"),
+        ("I think it will rain tomorrow.", "Saya pikir besok akan hujan.", "A2"),
+        # B1
+        ("The weather has been unpredictable lately.", "Cuaca akhir-akhir ini tidak dapat diprediksi.", "B1"),
+        ("It looks like it might snow this weekend.", "Sepertinya mungkin akan salju akhir minggu ini.", "B1"),
+        # B2
+        ("The weather has been exceptionally mild this winter.", "Cuaca telah非常好 ini musim dingin ini.", "B2"),
+        ("I would not be surprised if we had a heatwave this summer.", "Saya tidak akan terkejut jika kita memiliki gelombang panas musim panas ini.", "B2"),
+        # C1+
+        ("The meteorological conditions are conducive to the formation of thunderstorms.", "Kondisi meteorologis menguntungkan untuk pembentukan badai petir.", "C1"),
     ],
     "opinions": [
-        ("In my opinion, this is a good idea.", "Menurut saya, ini ide yang bagus."),
-        ("I agree with what you said.", "Saya setuju dengan yang kamu bilang."),
-        ("I disagree because of several reasons.", "Saya tidak setuju karena beberapa alasan."),
-        ("What do you think about this?", "Apa pendapatmu tentang ini?"),
-        ("I believe learning English is important.", "Saya percaya belajar bahasa Inggris penting."),
+        # A1
+        ("I like this book.", "Saya suka buku ini.", "A1"),
+        ("This is good.", "Ini bagus.", "A1"),
+        # A2
+        ("In my opinion, this is a good idea.", "Menurut saya, ini ide yang bagus.", "A2"),
+        ("I agree with what you said.", "Saya setuju dengan yang kamu bilang.", "A2"),
+        # B1
+        ("I believe learning English is important.", "Saya percaya belajar bahasa Inggris penting.", "B1"),
+        ("I have mixed feelings about that.", "Saya punya perasaan campur aduk tentang itu.", "B1"),
+        # B2
+        ("I am inclined to agree with your assessment.", "Saya cenderung setuju dengan penilaian Anda.", "B2"),
+        ("I would argue that there are more pros than cons.", "Saya akan berpendapat bahwa ada lebih banyak pro daripada kontra.", "B2"),
+        # C1+
+        ("I find myself at odds with the prevailing consensus on this matter.", "Saya mendapati diri saya tidak setuju dengan konsensus yang berlaku tentang masalah ini.", "C1"),
     ],
 }
+
+# ──────────────────────────────────────────────
+#  CEFR LEVEL HELPERS
+# ──────────────────────────────────────────────
+# Level → CEFR band mapping (every 3 levels)
+CEFR_BANDS = {
+    1: "A1", 2: "A1", 3: "A1",
+    4: "A2", 5: "A2", 6: "A2",
+    7: "B1", 8: "B1", 9: "B1",
+    10: "B2", 11: "B2", 12: "B2",
+    13: "C1", 14: "C1", 15: "C1",
+    16: "C2", 17: "C2", 18: "C2",
+}
+
+CEFR_ORDER = ["A1", "A2", "B1", "B2", "C1", "C2"]
+CEFR_EMOJI = {"A1": "🟢", "A2": "🟡", "B1": "🟠", "B2": "🔴", "C1": "🟣", "C2": "⚫"}
+CEFR_NAME = {"A1": "Beginner", "A2": "Elementary", "B1": "Intermediate", "B2": "Upper-Intermediate", "C1": "Advanced", "C2": "Proficient"}
+
+
+def get_cefr_for_level(level: int) -> str:
+    """Get target CEFR level for a player level (1-18+)."""
+    return CEFR_BANDS.get(level, CEFR_BANDS[max(CEFR_BANDS.keys())])
+
+
+def filter_sentences_by_level(sentences: list, player_level: int) -> list:
+    """Return sentences appropriate for player's level (±1 band for variety)."""
+    target_cefr = get_cefr_for_level(player_level)
+    target_idx = CEFR_ORDER.index(target_cefr)
+    # Allow sentences from target band ±1 (for variety)
+    allowed = set(CEFR_ORDER[max(0, target_idx-1):target_idx+2])
+    return [s for s in sentences if len(s) >= 3 and s[2] in allowed]
+
 
 UNLOCK_REQUIREMENTS = {
     "greetings": (1, 0),
@@ -1598,13 +1733,15 @@ if __name__ == "__main__":
     elif cmd == "sentences":
         topic = sys.argv[2] if len(sys.argv) > 2 else None
         if topic and topic in SENTENCES:
-            for i, (s, m) in enumerate(SENTENCES[topic]):
-                print(f"  {i+1}. {s}")
+            for i, s in enumerate(SENTENCES[topic]):
+                cefr = s[2] if len(s) > 2 else "?"
+                print(f"  {i+1}. [{cefr}] {s[0]}")
         else:
             for t, sents in SENTENCES.items():
                 print(f"\n[{t.upper()}]")
-                for s, m in sents:
-                    print(f"  {s}")
+                for s in sents:
+                    cefr = s[2] if len(s) > 2 else "?"
+                    print(f"  [{cefr}] {s[0]}")
 
     else:
         print(f"Unknown command: {cmd}")
