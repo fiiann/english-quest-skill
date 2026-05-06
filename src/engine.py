@@ -330,7 +330,7 @@ def award_skill_xp(state: dict, skill_id: str, base_xp: int,
 
 def get_skill_level(state: dict, skill_id: str) -> int:
     """Get current level (1-10) for a skill component."""
-    xp = state["skill_components"].get(skill_id, {}).get("xp", 0)
+    xp = state.get("skill_components", {}).get(skill_id, {}).get("xp", 0)
     return skill_level_from_xp(xp)
 
 
@@ -346,7 +346,7 @@ def get_skill_profile(state: dict) -> dict:
     skills = ["shadowing", "quiz", "listening", "pronunciation", "fluency"]
     profile = {}
     for sid in skills:
-        sc = state["skill_components"].get(sid, {"xp": 0, "total_score": 0, "count": 0})
+        sc = state.get("skill_components", {}).get(sid, {"xp": 0, "total_score": 0, "count": 0})
         level, xp_in, xp_next = skill_xp_to_next(sc.get("xp", 0))
         avg_score = (sc.get("total_score", 0) / max(sc.get("count", 1), 1)
                      if sc.get("count", 0) > 0 else 0)
