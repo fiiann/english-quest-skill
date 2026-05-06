@@ -90,9 +90,56 @@ An MMORPG-style English speaking practice system. Practice sentences, earn XP, l
   "shop": {
     "purchased_titles": [],
     "purchased_flairs": []
+  },
+  "skill_components": {
+    "shadowing":     {"xp": 0, "total_sentences": 0, "perfect_rounds": 0},
+    "quiz":          {"xp": 0, "questions_answered": 0, "correct_answers": 0, "perfect_streaks": 0},
+    "listening":     {"xp": 0, "total_score": 0, "count": 0},
+    "pronunciation": {"xp": 0, "total_score": 0, "count": 0},
+    "fluency":       {"xp": 0, "total_score": 0, "count": 0}
   }
 }
 ```
+
+## Skill Components
+
+Five independent skill tracks that measure different aspects of English learning. Each earns XP through its specific activity, and an **Overall Level** is calculated as their average.
+
+| Skill | Icon | Activity | Level Range |
+|-------|------|----------|-------------|
+| 🗣️ Shadowing | 🗣️ | Voice shadowing practice | 1–10 |
+| 📝 Quiz | 📝 | Grammar quiz | 1–10 |
+| 🎧 Listening | 🎧 | Comprehension (from shadowing) | 1–10 |
+| 🗽 Pronunciation | 🗽 | Sound accuracy (from shadowing) | 1–10 |
+| ⚡ Fluency | ⚡ | Speed & smoothness (from shadowing) | 1–10 |
+
+**Skill Level XP Thresholds (1–10):**
+```
+Lv1: 0 | Lv2: 50 | Lv3: 120 | Lv4: 220 | Lv5: 350
+Lv6: 520 | Lv7: 750 | Lv8: 1050 | Lv9: 1450 | Lv10: 2000
+```
+
+**Overall Level** = average of all 5 skill levels (can be fractional, e.g. 3.8)
+
+### Score Calculation (from shadowing)
+
+| Component | How it's Measured |
+|-----------|-------------------|
+| 🎧 Listening | Word match accuracy + penalties for missed/extra words |
+| 🗽 Pronunciation | Word-level match rate (ignores order) |
+| ⚡ Fluency | Accuracy × length ratio (longer correct sentences score higher) |
+
+All three components score 0–100 per sentence. XP earned = 10% of score.
+
+### XP Awards Per Activity
+
+| Action | Shadowing XP | Quiz XP |
+|--------|-------------|----------|
+| Perfect (⭐⭐⭐) | +15 | — |
+| Good (⭐⭐) | +8 | — |
+| Try again (⭐) | +3 | — |
+| Correct quiz answer | — | +10 |
+| 5-streak bonus | — | +50 |
 
 ## Level Table
 
@@ -257,6 +304,7 @@ Quiz Mode is a **text-only grammar practice** system. No voice recording needed 
 - `shadowing` / `start` / `practice` — begin a session
 - `boss` / `boss fight` — start weekly boss fight
 - `stats` / `profile` / `me` — show player card
+- `skills` — show full skill component breakdown (shadowing, quiz, listening, pronunciation, fluency)
 - `quests` / `daily` — show quest progress
 - `achievements` / `badges` — show earned achievements
 - `shop` — browse rewards
@@ -429,6 +477,7 @@ All commands work in Telegram chat. State is persisted automatically.
 - `shadowing` / `start rpg` / `practice` → Start session, show card + pick sentence
 - `boss` / `boss fight` → Start weekly boss fight (costs 5⚡)
 - `stats` / `profile` / `me` → Show player card
+- `skills` → Show skill component breakdown
 - `quests` / `daily` → Show quest progress
 - `shop` → Browse rewards
 - `buy [item]` → Purchase item (e.g., `buy title_shadow_warrior`)

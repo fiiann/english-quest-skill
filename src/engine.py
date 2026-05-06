@@ -178,6 +178,191 @@ ACHIEVEMENTS = {
 }
 
 # ──────────────────────────────────────────────
+#  SKILL COMPONENTS
+# ──────────────────────────────────────────────
+
+# Skill component IDs
+SKILL_COMPONENTS = {
+    "shadowing":       {"name": "Shadowing",       "icon": "🗣️",  "desc": "Voice shadowing practice"},
+    "quiz":            {"name": "Quiz",            "icon": "📝",  "desc": "Grammar quiz mastery"},
+    "listening":       {"name": "Listening",       "icon": "🎧",  "desc": "Comprehension skill"},
+    "pronunciation":   {"name": "Pronunciation",   "icon": "🗽",  "desc": "Sound accuracy"},
+    "fluency":         {"name": "Fluency",         "icon": "⚡",  "desc": "Speed & smoothness"},
+}
+
+# XP thresholds per skill level (1-10)
+# Level 1 = 0 XP, Level 10 = 5000 XP (exponential)
+SKILL_LEVEL_XP = [0, 50, 120, 220, 350, 520, 750, 1050, 1450, 2000, 5000]
+
+def skill_level_from_xp(xp: int) -> int:
+    """Convert XP to skill level (1-10)."""
+    level = 1
+    for i, threshold in enumerate(SKILL_LEVEL_XP):
+        if xp >= threshold:
+            level = i + 1
+    return min(level, 10)
+
+def skill_xp_to_next(xp: int) -> tuple[int, int]:
+    """Returns (current_level, xp_in_current_level, xp_for_next_level)."""
+    level = skill_level_from_xp(xp)
+    current_threshold = SKILL_LEVEL_XP[level - 1] if level > 1 else 0
+    next_threshold = SKILL_LEVEL_XP[min(level, len(SKILL_LEVEL_XP) - 1)]
+    xp_in_level = xp - current_threshold
+    xp_for_next = next_threshold - current_threshold
+    return level, xp_in_level, xp_for_next
+
+# XP awards per activity
+SKILL_XP_AWARD = {
+    "shadowing":     {"perfect": 15, "good": 8, "try_again": 3},   # per sentence
+    "quiz":          {"correct": 10, "streak_bonus": 5},             # per question
+    "listening":     {"weight": 0.30},  # weight in overall shadowing score
+    "pronunciation":  {"weight": 0.40},  # weight in overall shadowing score
+    "fluency":       {"weight": 0.30},  # weight in overall shadowing score
+}
+
+# ──────────────────────────────────────────────
+#  SKILL COMPONENT CALCULATIONS
+# ──────────────────────────────────────────────
+
+def calculate_shadowing_scores(target: str, spoken: str) -> dict:
+    """
+    Calculate listening, pronunciation, and fluency scores from shadowing attempt.
+    Returns dict with 0-100 scores for each component.
+    """
+    target_words = get_words(target)
+    spoken_words = get_words(spoken)
+
+    # ── LISTENING SCORE ──
+    # How well did user understand? Measured by word match accuracy.
+    # Also penalize extra/missing words (misunderstanding).
+    if len(target_words) == 0:
+        listening = 100
+    else:
+        correct = sum(1 for w in spoken_words if w in target_words)
+        # Penalize if user added or skipped words
+        missed = len(target_words) - sum(1 for w in target_words if w in spoken_words)
+        extra = max(0, len(spoken_words) - correct)
+        listening = max(0, (correct / len(target_words)) * 100) - (missed * 5) - (extra * 3)
+        listening = max(0, min(100, listening))
+
+    # ── PRONUNCIATION SCORE ──
+    # Word-level accuracy (ignores word order, just match/mismatch).
+    if len(target_words) == 0:
+        pronunciation = 100
+    else:
+        correct = sum(1 for w in spoken_words if w in target_words)
+        wrong_word = len(spoken_words) - correct
+        # Also penalize missing words as pronunciation issue
+        missing = len(target_words) - correct
+        pronunciation = max(0, (correct / len(target_words)) * 100)
+        pronunciation = max(0, min(100, pronunciation))
+
+    # ── FLUENCY SCORE ──
+    # Based on accuracy (close enough = more fluent attempt).
+    # Also give small boost for longer spoken attempts.
+    if len(spoken_words) == 0:
+        fluency = 0
+    else:
+        # Base on overall accuracy
+        base_fluency = (len([w for w in spoken_words if w in target_words]) /
+                        max(len(target_words), len(spoken_words))) * 100
+        # Length bonus (longer, correct sentences = more fluent)
+        length_ratio = min(len(spoken_words) / max(len(target_words), 1), 1.5)
+        fluency = min(100, base_fluency * length_ratio)
+
+    return {
+        "listening": round(listening, 1),
+        "pronunciation": round(pronunciation, 1),
+        "fluency": round(fluency, 1),
+    }
+
+
+def award_skill_xp(state: dict, skill_id: str, base_xp: int,
+                   listening: float = None, pronunciation: float = None,
+                   fluency: float = None) -> dict:
+    """
+    Award XP to a skill component and update its tracking stats.
+    For shadowing: also update listening/pronunciation/fluency sub-scores.
+    Returns dict of XP awarded per skill.
+    """
+    sc = state["skill_components"]
+
+    xp_awarded = {}
+
+    if skill_id == "shadowing":
+        sc["shadowing"]["total_sentences"] += 1
+        if base_xp >= 15:  # perfect
+            sc["shadowing"]["perfect_rounds"] += 1
+        xp = base_xp
+        sc["shadowing"]["xp"] += xp
+        xp_awarded["shadowing"] = xp
+
+        # Sub-scores from shadowing
+        if listening is not None:
+            sc["listening"]["total_score"] += listening
+            sc["listening"]["count"] += 1
+            listening_xp = int(listening * 0.10)  # 10% of score as XP
+            sc["listening"]["xp"] += listening_xp
+            xp_awarded["listening"] = listening_xp
+
+        if pronunciation is not None:
+            sc["pronunciation"]["total_score"] += pronunciation
+            sc["pronunciation"]["count"] += 1
+            pronunciation_xp = int(pronunciation * 0.10)
+            sc["pronunciation"]["xp"] += pronunciation_xp
+            xp_awarded["pronunciation"] = pronunciation_xp
+
+        if fluency is not None:
+            sc["fluency"]["total_score"] += fluency
+            sc["fluency"]["count"] += 1
+            fluency_xp = int(fluency * 0.10)
+            sc["fluency"]["xp"] += fluency_xp
+            xp_awarded["fluency"] = fluency_xp
+
+    elif skill_id == "quiz":
+        sc["quiz"]["questions_answered"] += 1
+        xp = base_xp
+        sc["quiz"]["xp"] += xp
+        xp_awarded["quiz"] = xp
+
+    return xp_awarded
+
+
+def get_skill_level(state: dict, skill_id: str) -> int:
+    """Get current level (1-10) for a skill component."""
+    xp = state["skill_components"].get(skill_id, {}).get("xp", 0)
+    return skill_level_from_xp(xp)
+
+
+def get_overall_level(state: dict) -> float:
+    """Get overall level as average of all 5 skill levels (can be fractional)."""
+    skills = ["shadowing", "quiz", "listening", "pronunciation", "fluency"]
+    levels = [get_skill_level(state, s) for s in skills]
+    return sum(levels) / len(levels)
+
+
+def get_skill_profile(state: dict) -> dict:
+    """Return full skill profile for display."""
+    skills = ["shadowing", "quiz", "listening", "pronunciation", "fluency"]
+    profile = {}
+    for sid in skills:
+        sc = state["skill_components"].get(sid, {"xp": 0, "total_score": 0, "count": 0})
+        level, xp_in, xp_next = skill_xp_to_next(sc.get("xp", 0))
+        avg_score = (sc.get("total_score", 0) / max(sc.get("count", 1), 1)
+                     if sc.get("count", 0) > 0 else 0)
+        profile[sid] = {
+            "level": level,
+            "xp": sc.get("xp", 0),
+            "xp_in_level": xp_in,
+            "xp_for_next": xp_next,
+            "avg_score": round(avg_score, 1),
+            "total_count": sc.get("count", 0),
+        }
+    profile["_overall"] = round(get_overall_level(state), 1)
+    return profile
+
+
+# ──────────────────────────────────────────────
 #  QUIZ BANK
 # ──────────────────────────────────────────────
 
@@ -273,6 +458,13 @@ def init_state(name: str = "Fian") -> dict:
                 "quiz_questions_seen": [],
                 "active_quiz_boss": None,
             },
+            "skill_components": {
+                "shadowing":     {"xp": 0, "total_sentences": 0, "perfect_rounds": 0},
+                "quiz":          {"xp": 0, "questions_answered": 0, "correct_answers": 0, "perfect_streaks": 0},
+                "listening":     {"xp": 0, "total_score": 0, "count": 0},
+                "pronunciation": {"xp": 0, "total_score": 0, "count": 0},
+                "fluency":       {"xp": 0, "total_score": 0, "count": 0},
+            },
         }
         save_state(state)
     return state
@@ -293,6 +485,16 @@ def check_daily_reset(state: dict) -> dict:
             "last_quiz_date": None,
             "quiz_questions_seen": [],
             "active_quiz_boss": None,
+        }
+
+    # Ensure skill_components exists (for saves made before skill system)
+    if "skill_components" not in state:
+        state["skill_components"] = {
+            "shadowing":     {"xp": 0, "total_sentences": 0, "perfect_rounds": 0},
+            "quiz":          {"xp": 0, "questions_answered": 0, "correct_answers": 0, "perfect_streaks": 0},
+            "listening":     {"xp": 0, "total_score": 0, "count": 0},
+            "pronunciation": {"xp": 0, "total_score": 0, "count": 0},
+            "fluency":       {"xp": 0, "total_score": 0, "count": 0},
         }
 
     if last != today:
@@ -717,6 +919,17 @@ def process_sentence(state: dict, target: str, spoken: str,
     leveled_up, new_unlocks = award_xp(state, xp_gained)
     player["gold"] += gold_gained
 
+    # Award skill component XP
+    skill_scores = calculate_shadowing_scores(target, spoken)
+    skill_xp_map = {15: 15, 10: 8, 5: 3}  # perfect, good, try_again
+    base_skill_xp = skill_xp_map.get(xp_gained, 3)
+    skill_xp_awarded = award_skill_xp(
+        state, "shadowing", base_skill_xp,
+        listening=skill_scores["listening"],
+        pronunciation=skill_scores["pronunciation"],
+        fluency=skill_scores["fluency"],
+    )
+
     # Daily quests
     update_quests(state, result, session_stats["perfect_streak"])
 
@@ -738,6 +951,9 @@ def process_sentence(state: dict, target: str, spoken: str,
         "monsters_defeated": monsters,
         "result": result,
         "new_achievements": new_achievements,
+        "skill_scores": skill_scores,
+        "skill_xp_awarded": skill_xp_awarded,
+        "overall_level": get_overall_level(state),
         "boss": None,
     }
 
@@ -752,6 +968,27 @@ def get_player_card(state: dict) -> str:
     xp_needed = xp_to_next_level(p["level"])
     xp_current = p["xp"] - xp_for_level(p["level"])
     xp_bar = "█" * int(xp_current / xp_needed * 10) + "░" * (10 - int(xp_current / xp_needed * 10))
+
+    # Skill components
+    sp = get_skill_profile(state)
+    overall = sp["_overall"]
+
+    skill_lines = []
+    for sid in ["shadowing", "quiz", "listening", "pronunciation", "fluency"]:
+        info = sp[sid]
+        meta = SKILL_COMPONENTS[sid]
+        icon = meta["icon"]
+        bar = "█" * int(info["xp_in_level"] / max(info["xp_for_next"], 1) * 8) + \
+              "░" * (8 - int(info["xp_in_level"] / max(info["xp_for_next"], 1) * 8))
+        skill_lines.append(
+            f"  {icon} {meta['name']:<14} Lv.{info['level']} {bar}"
+        )
+    skill_lines.append(
+        f"  ──────────────────────────────────"
+    )
+    skill_lines.append(
+        f"  🏆 Overall Level: ⭐ {overall}"
+    )
 
     # Daily quest status
     quest_lines = []
@@ -788,10 +1025,9 @@ def get_player_card(state: dict) -> str:
 ❤️ {p['hp']}/{p['max_hp']} HP   ⚡ {p['stamina']}/{p['max_stamina']} Stamina
 🪙 Gold: {p['gold']}
 
-📊 Stats
-  Sentences: {p['total_sentences_practiced']}
-  Accuracy:  {p['total_words_practiced'] and f"{100 - int(p['total_errors']/max(p['total_words_practiced'],1)*100)}%" or "—"}
-  Monsters defeated: {total_monsters}
+📊 Skills
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+""" + "\n".join(skill_lines) + f"""
 
 📋 Daily Quests
 """ + "\n".join(quest_lines)
@@ -981,6 +1217,9 @@ def check_quiz_answer(state: dict, question_id: str, user_answer: str) -> dict:
     leveled_up, new_unlocks = award_xp(state, xp_gained)
     player["gold"] += gold_gained
 
+    # Award quiz skill component XP
+    quiz_xp_awarded = award_skill_xp(state, "quiz", xp_gained)
+
     # Check quiz achievements
     new_achievements = []
     total_q = qs["questions_answered"]
@@ -1046,6 +1285,8 @@ No XP lost — try again!
         "new_unlocks": new_unlocks,
         "new_achievements": new_achievements,
         "question": question,
+        "quiz_xp_awarded": quiz_xp_awarded.get("quiz", 0),
+        "overall_level": get_overall_level(state),
     }
 
 

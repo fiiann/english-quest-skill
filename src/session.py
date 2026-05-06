@@ -37,6 +37,8 @@ from engine import (
     check_quiz_answer, get_random_quiz_question,
     start_quiz_boss, process_quiz_boss_hit,
     format_quiz_question,
+    SKILL_COMPONENTS, get_skill_profile, get_overall_level,
+    calculate_shadowing_scores, award_skill_xp,
 )
 import random
 
@@ -49,6 +51,7 @@ def cmd_start():
     card = get_player_card(state)
     unlocked = state["unlocked_skills"]
     greetings = SENTENCES["greetings"][0]
+    sp = get_skill_profile(state)
     return {
         "card": card,
         "first_sentence": greetings[0],
@@ -56,6 +59,7 @@ def cmd_start():
         "unlocked_topics": unlocked,
         "stamina": state["player"]["stamina"],
         "can_boss": state["player"]["stamina"] >= 5 and not state["quests"]["weekly_boss"]["defeated"],
+        "skill_profile": sp,
     }
 
 
@@ -187,6 +191,9 @@ def cmd_compare(target: str, spoken: str, topic: str, is_boss: bool = False):
         "xp": state["player"]["xp"],
         "xp_needed": xp_to_next_level(state["player"]["level"]),
         "new_achievements": [a["name"] for a in out.get("new_achievements", [])],
+        "skill_scores": out.get("skill_scores", {}),
+        "skill_xp_awarded": out.get("skill_xp_awarded", {}),
+        "overall_level": out.get("overall_level", 1.0),
     }
 
 
@@ -288,7 +295,30 @@ def cmd_buy(item_key: str):
 def cmd_card():
     state = init_state()
     state = check_daily_reset(state)
-    return {"card": get_player_card(state)}
+    sp = get_skill_profile(state)
+    return {"card": get_player_card(state), "skill_profile": sp}
+
+
+def cmd_skills():
+    """Show full skill component breakdown."""
+    state = load_state()
+    sp = get_skill_profile(state)
+
+    lines = ["📊 SKILL PROFILE\n━━━━━━━━━━━━━━━━━━"]
+    for sid in ["shadowing", "quiz", "listening", "pronunciation", "fluency"]:
+        info = sp[sid]
+        meta = SKILL_COMPONENTS[sid]
+        bar = "█" * int(info["xp_in_level"] / max(info["xp_for_next"], 1) * 10) + \
+              "░" * (10 - int(info["xp_in_level"] / max(info["xp_for_next"], 1) * 10))
+        avg = info.get("avg_score", 0)
+        lines.append(f"{meta['icon']} {meta['name']} — Lv.{info['level']} {bar}")
+        if avg > 0:
+            lines.append(f"   Avg score: {avg}% | Total: {info['total_count']} attempts")
+        else:
+            lines.append(f"   XP: {info['xp']} | Next: {info['xp_for_next']} XP")
+
+    lines.append(f"\n🏆 Overall Level: ⭐ {sp['_overall']}")
+    return {"skills_text": "\n".join(lines), "skill_profile": sp}
 
 
 def cmd_quests():
@@ -353,7 +383,7 @@ def cmd_quiz_answer(question_id: str, user_answer: str):
     """Check an answer to the current quiz question."""
     state = load_state()
     result = check_quiz_answer(state, question_id, user_answer)
-    # result already saves state
+    result["skill_profile"] = get_skill_profile(state)
     return result
 
 
@@ -461,6 +491,8 @@ if __name__ == "__main__":
             out = cmd_quiz_boss_hit(args[0], args[1])
     elif cmd == "quiz_stats":
         out = cmd_quiz_stats()
+    elif cmd == "skills":
+        out = cmd_skills()
     else:
         out = {"error": f"Unknown command: {cmd}"}
 
