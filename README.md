@@ -20,10 +20,10 @@
 
 ```bash
 # One-line install (default profile)
-bash -c "$(curl -sL https://raw.githubusercontent.com/YOUR_GITHUB/english-quest-skill/main/install.sh)"
+bash -c "$(curl -sL https://raw.githubusercontent.com/fiiann/english-quest-skill/main/install.sh)"
 
 # Or clone and install manually
-git clone https://github.com/YOUR_GITHUB/english-quest-skill.git
+git clone https://github.com/fiiann/english-quest-skill.git
 cd english-quest-skill
 bash install.sh
 ```
