@@ -310,6 +310,13 @@ ACHIEVEMENTS = {
     "grammar_apprentice": {"name": "Grammar Apprentice", "desc": "50 quiz questions, 80%+ accuracy", "id": "grammar_apprentice"},
     "quiz_perfect_10": {"name": "Perfect 10", "desc": "10 quiz answers in a row correct", "id": "quiz_perfect_10"},
     "quiz_boss_slayer": {"name": "Quiz Boss Slayer", "desc": "Defeat a quiz boss", "id": "quiz_boss_slayer"},
+    # Vocab Builder achievements
+    "word_rookie":       {"name": "Word Rookie",       "desc": "Review 10 vocabulary cards", "id": "word_rookie"},
+    "lexicon_apprentice": {"name": "Lexicon Apprentice", "desc": "50 cards reviewed, 70%+ Good/Easy rate", "id": "lexicon_apprentice"},
+    "vocab_daily":       {"name": "Vocab Daily",       "desc": "Complete a vocab session 7 days in a row", "id": "vocab_daily"},
+    "vocab_master":      {"name": "Vocab Master",      "desc": "Master 20 words (reach level 3)", "id": "vocab_master"},
+    "vocab_boss_slayer": {"name": "Vocab Boss Slayer", "desc": "Defeat a vocab boss", "id": "vocab_boss_slayer"},
+    "word_collector":    {"name": "Word Collector",    "desc": "Own 50+ words at level 2+", "id": "word_collector"},
 }
 
 # ──────────────────────────────────────────────
@@ -323,6 +330,7 @@ SKILL_COMPONENTS = {
     "listening":       {"name": "Listening",       "icon": "🎧",  "desc": "Comprehension skill"},
     "pronunciation":   {"name": "Pronunciation",   "icon": "🗽",  "desc": "Sound accuracy"},
     "fluency":         {"name": "Fluency",         "icon": "⚡",  "desc": "Speed & smoothness"},
+    "vocab":           {"name": "Vocabulary",     "icon": "📚",  "desc": "Word mastery"},
 }
 
 # XP thresholds per skill level (1-10)
@@ -460,6 +468,11 @@ def award_skill_xp(state: dict, skill_id: str, base_xp: int,
         sc["quiz"]["xp"] += xp
         xp_awarded["quiz"] = xp
 
+    elif skill_id == "vocab":
+        sc["vocab"]["count"] += 1
+        sc["vocab"]["xp"] += base_xp
+        xp_awarded["vocab"] = base_xp
+
     return xp_awarded
 
 
@@ -470,15 +483,15 @@ def get_skill_level(state: dict, skill_id: str) -> int:
 
 
 def get_overall_level(state: dict) -> float:
-    """Get overall level as average of all 5 skill levels (can be fractional)."""
-    skills = ["shadowing", "quiz", "listening", "pronunciation", "fluency"]
+    """Get overall level as average of all 6 skill levels (can be fractional)."""
+    skills = ["shadowing", "quiz", "listening", "pronunciation", "fluency", "vocab"]
     levels = [get_skill_level(state, s) for s in skills]
     return sum(levels) / len(levels)
 
 
 def get_skill_profile(state: dict) -> dict:
     """Return full skill profile for display."""
-    skills = ["shadowing", "quiz", "listening", "pronunciation", "fluency"]
+    skills = ["shadowing", "quiz", "listening", "pronunciation", "fluency", "vocab"]
     profile = {}
     for sid in skills:
         sc = state.get("skill_components", {}).get(sid, {"xp": 0, "total_score": 0, "count": 0})
@@ -510,6 +523,16 @@ def load_quiz_bank() -> dict:
     return {}
 
 QUIZ_BANK = load_quiz_bank()
+
+VOCAB_BANK_FILE = Path("/home/ubuntu/.hermes/profiles/elias-strategist/rpg/vocab_bank.json")
+
+def load_vocab_bank() -> dict:
+    if VOCAB_BANK_FILE.exists():
+        with open(VOCAB_BANK_FILE) as f:
+            return json.load(f)
+    return {}
+
+VOCAB_BANK = load_vocab_bank()
 
 
 # ──────────────────────────────────────────────
@@ -1695,8 +1718,651 @@ You still earned XP! Keep practicing!
 
 
 # ──────────────────────────────────────────────
-#  MAIN ENTRY
+#  VOCAB BUILDER ENGINE
 # ──────────────────────────────────────────────
+
+def check_vocab_daily_reset(state: dict) -> dict:
+    """Reset vocab streak if a day was missed."""
+    vs = state.get("vocab_state", {})
+    today = date.today().isoformat()
+    if vs.get("last_vocab_date") and vs["last_vocab_date"] != today:
+        # Check if it was just yesterday for streak continuity
+        import datetime
+        last = datetime.date.fromisoformat(vs["last_vocab_date"])
+        today_d = datetime.date.today()
+        if (today_d - last).days > 1:
+            vs["vocab_streak"] = 0
+        vs["last_vocab_date"] = today
+    elif not vs.get("last_vocab_date"):
+        vs["last_vocab_date"] = today
+    state["vocab_state"] = vs
+    return state
+
+
+def get_random_vocab_card(state: dict, topic: str = None) -> Optional[dict]:
+    """Pick a random vocab card, preferring low-mastery and unvisited."""
+    vs = state.get("vocab_state", {})
+    mastery = vs.get("word_mastery", {})
+    player_level = state["player"].get("level", 1)
+
+    # CEFR filter: show words within player's level band ±1
+    def cefr_score(cefr):
+        cefr_map = {"A1": 1, "A2": 2, "B1": 3, "B2": 4, "C1": 5, "C2": 6}
+        return cefr_map.get(cefr, 1)
+
+    player_cefr_band = max(1, (player_level - 1) // 3 + 1)
+
+    eligible = []
+    topics_to_search = [topic] if topic and topic in VOCAB_BANK else list(VOCAB_BANK.keys())
+
+    for t in topics_to_search:
+        for card in VOCAB_BANK[t]:
+            wm = mastery.get(card["id"], {})
+            level = wm.get("level", 0)
+            # Prefer unmastered or low-mastery words
+            if level >= 3:
+                continue  # skip fully mastered
+            card_cefr_score = cefr_score(card.get("cefr", "A1"))
+            if abs(card_cefr_score - player_cefr_band) > 1:
+                continue  # skip words too far from player's level
+            # Score for selection priority (lower = more urgent)
+            priority = level * 10 + (1 if wm.get("reviews", 0) == 0 else 0)
+            eligible.append((priority, card, t))
+
+    if not eligible:
+        # Fallback: any non-mastered word
+        for t in topics_to_search:
+            for card in VOCAB_BANK[t]:
+                wm = mastery.get(card["id"], {})
+                if wm.get("level", 0) < 3:
+                    card = dict(card)
+                    card["_topic"] = t
+                    return card
+        return None
+
+    # Sort by priority (lowest first = most urgent)
+    eligible.sort(key=lambda x: x[0])
+    chosen = random.choice(eligible[:10])  # pick from top 10 urgent
+    card = dict(chosen[1])
+    card["_topic"] = chosen[2]
+    return card
+
+
+def start_vocab_session(state: dict, topic: str = None) -> dict:
+    """Start a new vocab session of 5 cards."""
+    player = state["player"]
+    vs = state.setdefault("vocab_state", {
+        "vocab_sessions": 0,
+        "cards_reviewed": 0,
+        "correct_recalls": 0,
+        "vocab_streak": 0,
+        "last_vocab_date": None,
+        "word_mastery": {},
+        "active_vocab_session": None,
+    })
+
+    if player["stamina"] < 1:
+        return {"error": "⚡ Not enough stamina! You need at least 1⚡."}
+
+    # Consume 1 stamina
+    player["stamina"] -= 1
+
+    # Pick 5 cards
+    cards = []
+    seen_ids = set()
+    for _ in range(5):
+        card = get_random_vocab_card(state, topic)
+        if card and card["id"] not in seen_ids:
+            cards.append(card)
+            seen_ids.add(card["id"])
+
+    if len(cards) < 5:
+        # Not enough eligible cards — fill with whatever's available
+        for t in (list(VOCAB_BANK.keys()) if topic is None else [topic]):
+            for card in VOCAB_BANK.get(t, []):
+                if card["id"] not in seen_ids and len(cards) < 5:
+                    c = dict(card)
+                    c["_topic"] = t
+                    cards.append(c)
+                    seen_ids.add(card["id"])
+
+    session = {
+        "topic": topic or "mixed",
+        "cards": [c["id"] for c in cards],
+        "current_index": 0,
+        "seen_ids": [],
+        "revealed": False,
+        "correct_count": 0,
+        "ratings": [],
+    }
+    vs["active_vocab_session"] = session
+    vs["vocab_sessions"] += 1
+    state["vocab_state"] = vs
+    save_state(state)
+
+    first_card = None
+    for t, t_cards in VOCAB_BANK.items():
+        for c in t_cards:
+            if c["id"] == cards[0]["id"]:
+                first_card = dict(c)
+                first_card["_topic"] = t
+                break
+        if first_card:
+            break
+
+    return {
+        "message": f"📚 VOCAB SESSION STARTED! ({len(cards)} cards)\n{'Topic: ' + (topic or 'mixed')}\n━━━━━━━━━━━━━━━━━━\n\n💡 Type 'vocab_reveal' to see the definition, then 'vocab_rate [again|hard|good|easy]' to rate!",
+        "card": first_card,
+        "card_number": 1,
+        "total_cards": len(cards),
+        "stamina": player["stamina"],
+        "session_id": f"vocab_{vs['vocab_sessions']}",
+    }
+
+
+def get_current_vocab_card(state: dict) -> Optional[dict]:
+    """Get the current card in the active session."""
+    vs = state.get("vocab_state", {})
+    session = vs.get("active_vocab_session")
+    if not session:
+        return None
+    if session["current_index"] >= len(session["cards"]):
+        return None
+    card_id = session["cards"][session["current_index"]]
+    for t, t_cards in VOCAB_BANK.items():
+        for c in t_cards:
+            if c["id"] == card_id:
+                card = dict(c)
+                card["_topic"] = t
+                card["_revealed"] = session.get("revealed", False)
+                mastery = vs.get("word_mastery", {}).get(card_id, {})
+                card["_mastery_level"] = mastery.get("level", 0)
+                return card
+    return None
+
+
+def reveal_vocab_card(state: dict) -> dict:
+    """Reveal the current card's definition."""
+    vs = state.get("vocab_state", {})
+    session = vs.get("active_vocab_session")
+    if not session:
+        return {"error": "No active vocab session. Start one with 'vocab_start'."}
+
+    session["revealed"] = True
+    vs["active_vocab_session"] = session
+    state["vocab_state"] = vs
+    save_state(state)
+
+    card = get_current_vocab_card(state)
+    if not card:
+        return {"error": "Session ended. Start a new one with 'vocab_start'."}
+
+    mastery_emoji = ["🆕", "🔄", "✅", "⭐"][card["_mastery_level"]]
+
+    feedback = f"""📚 VOCAB CARD
+━━━━━━━━━━━━━━━━━━
+{mastery_emoji} {card['word']} ({card.get('part_of_speech', '')})
+CEFR: {card.get('cefr', 'A1')}
+
+💡 Definition:
+   {card.get('definition', '')}
+
+🇮🇩 Indonesian:
+   {card.get('indonesian', '')}
+
+📝 Example:
+   \"{card.get('example', '')}\"
+
+🔊 {card.get('phonetic', '')}
+
+Rate: vocab_rate [again|hard|good|easy]"""
+
+    return {
+        "feedback": feedback,
+        "card": card,
+        "card_number": session["current_index"] + 1,
+        "total_cards": len(session["cards"]),
+    }
+
+
+def rate_vocab_card(state: dict, card_id: str, rating: str) -> dict:
+    """
+    Rate a vocab card: again(0), hard(1), good(2), easy(3).
+    Updates mastery level and awards XP.
+    """
+    vs = state.setdefault("vocab_state", {
+        "vocab_sessions": 0,
+        "cards_reviewed": 0,
+        "correct_recalls": 0,
+        "vocab_streak": 0,
+        "last_vocab_date": None,
+        "word_mastery": {},
+        "active_vocab_session": None,
+    })
+    session = vs.get("active_vocab_session")
+    if not session:
+        return {"error": "No active vocab session. Start one with 'vocab_start'."}
+
+    # Find the card
+    card_data = None
+    for t, t_cards in VOCAB_BANK.items():
+        for c in t_cards:
+            if c["id"] == card_id:
+                card_data = dict(c)
+                card_data["_topic"] = t
+                break
+        if card_data:
+            break
+    if not card_data:
+        return {"error": f"Card not found: {card_id}"}
+
+    rating = rating.lower().strip()
+    if rating not in ("again", "hard", "good", "easy"):
+        return {"error": "Rating must be: again, hard, good, or easy"}
+
+    r_map = {"again": 0, "hard": 1, "good": 2, "easy": 3}
+    r_value = r_map[rating]
+
+    mastery = vs.setdefault("word_mastery", {})
+    wm = mastery.setdefault(card_id, {"level": 0, "reviews": 0, "last_reviewed": None})
+
+    old_level = wm["level"]
+    xp_gained = 0
+
+    # Mastery transition rules
+    if old_level == 0:
+        if r_value == 0:  # again
+            xp_gained = 0
+            wm["level"] = 0
+        elif r_value == 1:  # hard
+            xp_gained = 5
+            wm["level"] = 1
+        elif r_value == 2:  # good
+            xp_gained = 10
+            wm["level"] = 1
+        elif r_value == 3:  # easy
+            xp_gained = 15
+            wm["level"] = 2
+    elif old_level == 1:
+        if r_value <= 1:  # again/hard
+            xp_gained = 0
+            wm["level"] = 0
+        elif r_value == 2:  # good
+            xp_gained = 10
+            wm["level"] = 2
+        elif r_value == 3:  # easy
+            xp_gained = 15
+            wm["level"] = 3  # mastered!
+    elif old_level == 2:
+        if r_value <= 1:  # again/hard
+            xp_gained = 0
+            wm["level"] = 1
+        elif r_value == 2:  # good
+            xp_gained = 10
+            wm["level"] = 2
+        elif r_value == 3:  # easy
+            xp_gained = 15
+            wm["level"] = 3  # mastered!
+    elif old_level == 3:
+        # Mastered — still review occasionally but no XP
+        xp_gained = 0
+
+    wm["reviews"] += 1
+    wm["last_reviewed"] = date.today().isoformat()
+
+    # Update session
+    session["ratings"].append(rating)
+    if r_value >= 2:  # Good or Easy
+        session["correct_count"] += 1
+        vs["correct_recalls"] += 1
+    session["seen_ids"].append(card_id)
+    session["revealed"] = False
+
+    # Advance to next card
+    session["current_index"] += 1
+    vs["cards_reviewed"] += 1
+    vs["word_mastery"] = mastery
+
+    # Award XP
+    award_xp(state, xp_gained)
+    award_skill_xp(state, "vocab", xp_gained)
+
+    # Check vocab achievements
+    new_ach = check_vocab_achievements(state)
+    new_ach_names = [a["name"] for a in new_ach]
+
+    # Update daily reset
+    check_vocab_daily_reset(state)
+    vs = state["vocab_state"]
+
+    # Check if session is done
+    session_done = session["current_index"] >= len(session["cards"])
+
+    mastery_emoji = ["🆕", "🔄", "✅", "⭐"][wm["level"]]
+    result = {
+        "xp_gained": xp_gained,
+        "word": card_data["word"],
+        "old_mastery": old_level,
+        "new_mastery": wm["level"],
+        "mastery_emoji": mastery_emoji,
+        "rating": rating,
+        "correct_count": session["correct_count"],
+        "cards_reviewed": vs["cards_reviewed"],
+        "stamina": state["player"]["stamina"],
+        "xp": state["player"]["xp"],
+        "session_done": session_done,
+        "new_achievements": new_ach_names,
+    }
+
+    if session_done:
+        # Session complete — give bonus XP
+        bonus = 20 if session["correct_count"] >= 4 else 10
+        award_xp(state, bonus)
+        result["xp_gained"] += bonus
+        result["feedback"] = f"""📚 SESSION COMPLETE!
+━━━━━━━━━━━━━━━━━━
+Cards reviewed: {len(session['cards'])}
+Correct (Good/Easy): {session['correct_count']}/{len(session['cards'])}
+
+💰 +{bonus} XP bonus
+📊 Total earned: +{result['xp_gained']} XP
+
+💬 "Keep building your vocabulary!" """
+        vs["active_vocab_session"] = None
+        # Update streak
+        today = date.today().isoformat()
+        if vs.get("last_vocab_date") != today:
+            vs["last_vocab_date"] = today
+        vs["vocab_streak"] = vs.get("vocab_streak", 0) + 1
+
+    state["vocab_state"] = vs
+    save_state(state)
+    return result
+
+
+def check_vocab_achievements(state: dict) -> list:
+    """Check and unlock vocab-specific achievements."""
+    vs = state.get("vocab_state", {})
+    mastery = vs.get("word_mastery", {})
+    new = []
+
+    checks = [
+        ("word_rookie", lambda: vs.get("cards_reviewed", 0) >= 10),
+        ("lexicon_apprentice", lambda: vs.get("cards_reviewed", 0) >= 50 and
+            (vs.get("correct_recalls", 0) / max(vs.get("cards_reviewed", 1), 1)) >= 0.7),
+        ("vocab_daily", lambda: vs.get("vocab_streak", 0) >= 7),
+        ("vocab_master", lambda: sum(1 for w in mastery.values() if w.get("level", 0) >= 3) >= 20),
+        ("vocab_boss_slayer", lambda: vs.get("vocab_bosses_defeated", 0) >= 1),
+        ("word_collector", lambda: sum(1 for w in mastery.values() if w.get("level", 0) >= 2) >= 50),
+    ]
+
+    for ach_id, check_fn in checks:
+        if ach_id not in state["achievements"]:
+            try:
+                if check_fn():
+                    unlock_achievement(state, ach_id)
+                    new.append(ACHIEVEMENTS[ach_id])
+            except Exception:
+                pass
+
+    return new
+
+
+def start_vocab_boss(state: dict, topic: str = None) -> dict:
+    """Start a vocab boss fight — 10 cards, boss HP system."""
+    player = state["player"]
+    vs = state.setdefault("vocab_state", {
+        "vocab_sessions": 0,
+        "cards_reviewed": 0,
+        "correct_recalls": 0,
+        "vocab_streak": 0,
+        "last_vocab_date": None,
+        "word_mastery": {},
+        "active_vocab_session": None,
+    })
+
+    if player["stamina"] < 5:
+        return {"error": "⚡ Not enough stamina! Vocab Boss costs 5⚡."}
+
+    player["stamina"] -= 5
+
+    # Pick 10 cards
+    cards = []
+    seen_ids = set()
+    for _ in range(20):  # try up to 20 to find 10
+        card = get_random_vocab_card(state, topic)
+        if card and card["id"] not in seen_ids:
+            cards.append(card)
+            seen_ids.add(card["id"])
+        if len(cards) >= 10:
+            break
+
+    if len(cards) < 5:
+        player["stamina"] += 5  # refund
+        return {"error": "Not enough vocab cards available. Keep practicing!"}
+
+    # Remove duplicates and cap at 10
+    unique_cards = []
+    used_ids = set()
+    for c in cards:
+        if c["id"] not in used_ids:
+            unique_cards.append(c)
+            used_ids.add(c["id"])
+        if len(unique_cards) >= 10:
+            break
+
+    if not unique_cards:
+        player["stamina"] += 5  # refund
+        return {"error": "Not enough vocab cards available. Keep practicing!"}
+
+    session = {
+        "topic": topic or "mixed",
+        "is_boss": True,
+        "cards": [c["id"] for c in unique_cards],
+        "current_index": 0,
+        "seen_ids": [],
+        "revealed": False,
+        "correct_count": 0,
+        "ratings": [],
+        "boss_name": "The Lexicon Lich",
+        "boss_max_hp": 100,
+        "boss_hp": 100,
+    }
+    vs["active_vocab_session"] = session
+    state["vocab_state"] = vs
+    save_state(state)
+
+    first_card = None
+    for t, t_cards in VOCAB_BANK.items():
+        for c in t_cards:
+            if c["id"] == unique_cards[0]["id"]:
+                first_card = dict(c)
+                first_card["_topic"] = t
+                break
+        if first_card:
+            break
+
+    return {
+        "message": f"""⚔️ VOCAB BOSS FIGHT!
+━━━━━━━━━━━━━━━━━━
+👹 The Lexicon Lich — HP: 100/100
+
+10 vocabulary cards stand between you and victory!
+Each Good/Easy answer deals damage to the boss.
+Costs 5⚡ to start.
+
+Type 'vocab_reveal' to see the card, then 'vocab_rate [again|hard|good|easy]'!""",
+        "card": first_card,
+        "card_number": 1,
+        "total_cards": len(unique_cards),
+        "boss_name": session["boss_name"],
+        "boss_hp": 100,
+        "boss_max_hp": 100,
+        "stamina": player["stamina"],
+    }
+
+
+def process_vocab_boss_rating(state: dict, card_id: str, rating: str) -> dict:
+    """Process a rating in a vocab boss fight."""
+    vs = state.get("vocab_state", {})
+    session = vs.get("active_vocab_session")
+
+    if not session or not session.get("is_boss"):
+        return {"error": "No active vocab boss. Start one with 'vocab_boss'."}
+
+    # Process the rating (reuse rate_vocab_card logic but with boss HP)
+    card_data = None
+    for t, t_cards in VOCAB_BANK.items():
+        for c in t_cards:
+            if c["id"] == card_id:
+                card_data = dict(c)
+                card_data["_topic"] = t
+                break
+        if card_data:
+            break
+
+    rating = rating.lower().strip()
+    r_map = {"again": 0, "hard": 1, "good": 2, "easy": 3}
+    r_value = r_map.get(rating, 0)
+
+    mastery = vs.setdefault("word_mastery", {})
+    wm = mastery.setdefault(card_id, {"level": 0, "reviews": 0})
+
+    old_level = wm["level"]
+    xp_gained = 0
+    damage = 0
+
+    # Same mastery logic as rate_vocab_card
+    if old_level == 0:
+        if r_value == 0:
+            xp_gained = 0
+        elif r_value == 1:
+            xp_gained = 5
+            wm["level"] = 1
+            damage = 5
+        elif r_value == 2:
+            xp_gained = 10
+            wm["level"] = 1
+            damage = 10
+        elif r_value == 3:
+            xp_gained = 15
+            wm["level"] = 2
+            damage = 15
+    elif old_level == 1:
+        if r_value <= 1:
+            xp_gained = 0
+            wm["level"] = 0
+        elif r_value == 2:
+            xp_gained = 10
+            wm["level"] = 2
+            damage = 10
+        elif r_value == 3:
+            xp_gained = 15
+            wm["level"] = 3
+            damage = 15
+    elif old_level == 2:
+        if r_value <= 1:
+            xp_gained = 0
+            wm["level"] = 1
+            damage = 0
+        elif r_value == 2:
+            xp_gained = 10
+            damage = 10
+        elif r_value == 3:
+            xp_gained = 15
+            wm["level"] = 3
+            damage = 20
+    elif old_level == 3:
+        xp_gained = 0
+        damage = 5
+
+    wm["reviews"] += 1
+    session["ratings"].append(rating)
+    if r_value >= 2:
+        session["correct_count"] += 1
+    session["seen_ids"].append(card_id)
+    session["revealed"] = False
+    session["current_index"] += 1
+
+    session["boss_hp"] = max(0, session["boss_hp"] - damage)
+
+    award_xp(state, xp_gained)
+    award_skill_xp(state, "vocab", xp_gained)
+
+    boss_defeated = session["boss_hp"] <= 0
+    boss_complete = session["current_index"] >= len(session["cards"])
+
+    result = {
+        "xp_gained": xp_gained,
+        "damage": damage,
+        "boss_hp": session["boss_hp"],
+        "boss_max_hp": session["boss_max_hp"],
+        "boss_name": session["boss_name"],
+        "boss_defeated": boss_defeated,
+        "boss_complete": boss_complete,
+        "correct_count": session["correct_count"],
+        "card_number": session["current_index"],
+        "total_cards": len(session["cards"]),
+    }
+
+    if boss_defeated:
+        bonus = 300
+        gold_bonus = 50
+        award_xp(state, bonus)
+        state["player"]["gold"] += gold_bonus
+        vs["vocab_bosses_defeated"] = vs.get("vocab_bosses_defeated", 0) + 1
+        vs["vocab_sessions"] += 1
+        check_vocab_achievements(state)
+        result["victory_message"] = f"""🎉 VOCAB BOSS DEFEATED!!!
+━━━━━━━━━━━━━━━━━━
+👹 {session['boss_name']} has been vanquished!
+
+📊 Stats:
+  ✅ Good/Easy: {session['correct_count']}/{len(session['cards'])}
+  💥 Damage dealt: {session['boss_max_hp']}
+
+🏆 Rewards:
+  +{bonus} XP | +{gold_bonus}🪙
+  ⚔️ Vocab Boss Slayer badge earned!
+
+You're a Lexicon Warrior!"""
+        vs["active_vocab_session"] = None
+
+    elif boss_complete and not boss_defeated:
+        bonus = 50
+        award_xp(state, bonus)
+        vs["vocab_sessions"] += 1
+        result["survival_message"] = f"""🏳️ Boss Escaped!
+━━━━━━━━━━━━━━━━━━
+{session['boss_name']} survived with {session['boss_hp']}/{session['boss_max_hp']} HP.
+
+📊 Accuracy: {int(session['correct_count'] / len(session['cards']) * 100)}%
+
+You still earned XP! Keep building your vocabulary!"""
+        vs["active_vocab_session"] = None
+
+    state["vocab_state"] = vs
+    save_state(state)
+    return result
+
+
+def search_vocab_bank(query: str) -> list:
+    """Search vocab bank by word or definition."""
+    query = query.lower().strip()
+    results = []
+    for t, t_cards in VOCAB_BANK.items():
+        for c in t_cards:
+            if (query in c.get("word", "").lower() or
+                query in c.get("definition", "").lower() or
+                query in c.get("indonesian", "").lower()):
+                card = dict(c)
+                card["_topic"] = t
+                results.append(card)
+            if len(results) >= 20:
+                break
+        if len(results) >= 20:
+            break
+    return results
 
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "status"

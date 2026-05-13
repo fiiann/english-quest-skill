@@ -40,6 +40,10 @@ from engine import (
     SKILL_COMPONENTS, get_skill_profile, get_overall_level,
     calculate_shadowing_scores, award_skill_xp,
     CEFR_EMOJI, CEFR_NAME, filter_sentences_by_level,
+    VOCAB_BANK,
+    start_vocab_session, reveal_vocab_card, rate_vocab_card,
+    get_current_vocab_card, start_vocab_boss, process_vocab_boss_rating,
+    search_vocab_bank, check_vocab_daily_reset,
 )
 import random
 
@@ -462,6 +466,162 @@ def cmd_quiz_stats():
 
 
 # ──────────────────────────────────────────────
+#  VOCAB COMMANDS
+# ──────────────────────────────────────────────
+
+def cmd_vocab_start(topic: str = None):
+    """Start a new vocab session (5 cards, costs 1 stamina)."""
+    state = init_state()
+    state = check_daily_reset(state)
+    state = check_vocab_daily_reset(state)
+    save_state(state)
+
+    result = start_vocab_session(state, topic)
+    return result
+
+
+def cmd_vocab():
+    """Get the current vocab card (without revealing)."""
+    state = load_state()
+    vs = state.get("vocab_state", {})
+    session = vs.get("active_vocab_session")
+
+    if not session:
+        return {"error": "No active vocab session. Start one with 'vocab_start' or 'vocab'."}
+
+    card = get_current_vocab_card(state)
+    if not card:
+        return {"error": "Session ended. Start a new one with 'vocab'."}
+
+    mastery_emoji = ["🆕", "🔄", "✅", "⭐"][card.get("_mastery_level", 0)]
+
+    # Show just the word (like a flashcard face)
+    msg = f"""📚 VOCAB CARD
+━━━━━━━━━━━━━━━━━━
+{mastery_emoji} {card['word']} ({card.get('part_of_speech', '')})
+CEFR: {card.get('cefr', 'A1')}
+
+💡 Type 'vocab_reveal' to see the definition!"""
+
+    return {
+        "feedback": msg,
+        "card": card,
+        "card_number": session["current_index"] + 1,
+        "total_cards": len(session["cards"]),
+    }
+
+
+def cmd_vocab_reveal():
+    """Reveal the current card's definition."""
+    state = load_state()
+    state = check_vocab_daily_reset(state)
+    result = reveal_vocab_card(state)
+    return result
+
+
+def cmd_vocab_rate(rating: str):
+    """Rate the current card: again, hard, good, easy."""
+    state = load_state()
+    vs = state.get("vocab_state", {})
+    session = vs.get("active_vocab_session")
+
+    if not session:
+        return {"error": "No active vocab session. Start one with 'vocab'."}
+
+    # Get current card id
+    if session["current_index"] >= len(session["cards"]):
+        return {"error": "Session ended. Start a new one with 'vocab'."}
+
+    card_id = session["cards"][session["current_index"]]
+
+    if session.get("is_boss"):
+        result = process_vocab_boss_rating(state, card_id, rating)
+        result["stamina"] = state["player"]["stamina"]
+        result["xp"] = state["player"]["xp"]
+        return result
+    else:
+        result = rate_vocab_card(state, card_id, rating)
+        result["stamina"] = state["player"]["stamina"]
+        result["xp"] = state["player"]["xp"]
+        return result
+
+
+def cmd_vocab_stats():
+    """Show vocab-specific stats."""
+    state = load_state()
+    vs = state.get("vocab_state", {})
+    mastery = vs.get("word_mastery", {})
+    player = state["player"]
+
+    cards_reviewed = vs.get("cards_reviewed", 0)
+    correct = vs.get("correct_recalls", 0)
+    streak = vs.get("vocab_streak", 0)
+    sessions = vs.get("vocab_sessions", 0)
+    mastered = sum(1 for w in mastery.values() if w.get("level", 0) >= 3)
+    learning = sum(1 for w in mastery.values() if w.get("level", 0) in (1, 2))
+    new_words = sum(1 for w in mastery.values() if w.get("level", 0) == 0)
+
+    accuracy = f"{int(correct / cards_reviewed * 100)}%" if cards_reviewed > 0 else "—"
+
+    lines = [
+        "📚 VOCAB STATS",
+        "━" * 32,
+        f"  Sessions completed: {sessions}",
+        f"  Cards reviewed:    {cards_reviewed}",
+        f"  Correct recalls:   {correct}",
+        f"  Accuracy:          {accuracy}",
+        f"  Current streak:    {streak} days",
+        "",
+        f"  📖 Mastered (⭐):  {mastered}",
+        f"  🔄 Learning:       {learning}",
+        f"  🆕 New words:      {new_words}",
+        "",
+        f"⚡ Stamina: {player['stamina']}/{player['max_stamina']}",
+    ]
+
+    return {"message": "\n".join(lines), "stats": {
+        "sessions": sessions,
+        "cards_reviewed": cards_reviewed,
+        "correct": correct,
+        "accuracy": accuracy,
+        "streak": streak,
+        "mastered": mastered,
+        "learning": learning,
+        "new_words": new_words,
+    }}
+
+
+def cmd_vocab_boss(topic: str = None):
+    """Start a vocab boss fight (10 cards, costs 5 stamina)."""
+    state = init_state()
+    state = check_daily_reset(state)
+    state = check_vocab_daily_reset(state)
+    save_state(state)
+
+    result = start_vocab_boss(state, topic)
+    return result
+
+
+def cmd_vocab_search(query: str):
+    """Search the vocab bank for a word."""
+    if not query.strip():
+        return {"error": "Usage: vocab_search <word>"}
+
+    results = search_vocab_bank(query)
+    if not results:
+        return {"error": f"No words found matching '{query}'."}
+
+    lines = [f"🔍 VOCAB SEARCH: '{query}'\n{'━' * 32}"]
+    for card in results[:10]:
+        mastery_emoji = ["🆕", "🔄", "✅", "⭐"][card.get("_mastery_level", 0)]
+        lines.append(f"{mastery_emoji} {card['word']} — {card.get('definition', '')}")
+        lines.append(f"   🇮🇩 {card.get('indonesian', '')}  |  [{card.get('cefr', 'A1')}]")
+        lines.append("")
+
+    return {"message": "\n".join(lines), "results": results[:10]}
+
+
+# ──────────────────────────────────────────────
 #  MAIN DISPATCH
 # ──────────────────────────────────────────────
 
@@ -510,6 +670,30 @@ if __name__ == "__main__":
             out = cmd_quiz_boss_hit(args[0], args[1])
     elif cmd == "quiz_stats":
         out = cmd_quiz_stats()
+    elif cmd == "vocab":
+        # vocab or vocab [topic]
+        topic = args[0] if args else None
+        out = cmd_vocab_start(topic) if not args else cmd_vocab()
+    elif cmd == "vocab_start":
+        topic = args[0] if args else None
+        out = cmd_vocab_start(topic)
+    elif cmd == "vocab_reveal":
+        out = cmd_vocab_reveal()
+    elif cmd == "vocab_rate":
+        if not args:
+            out = {"error": "Usage: vocab_rate <again|hard|good|easy>"}
+        else:
+            out = cmd_vocab_rate(args[0])
+    elif cmd == "vocab_stats":
+        out = cmd_vocab_stats()
+    elif cmd == "vocab_boss":
+        topic = args[0] if args else None
+        out = cmd_vocab_boss(topic)
+    elif cmd == "vocab_search":
+        if not args:
+            out = {"error": "Usage: vocab_search <word>"}
+        else:
+            out = cmd_vocab_search(" ".join(args))
     elif cmd == "skills":
         out = cmd_skills()
     else:
