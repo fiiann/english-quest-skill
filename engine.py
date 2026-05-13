@@ -1861,11 +1861,28 @@ def start_vocab_session(state: dict, topic: str = None) -> dict:
         if first_card:
             break
 
+    # Build all cards for batch display
+    all_cards = []
+    for card in cards:
+        for t, t_cards in VOCAB_BANK.items():
+            for c in t_cards:
+                if c["id"] == card["id"]:
+                    cp = dict(c)
+                    cp["_topic"] = t
+                    cp["_mastery_level"] = vs.get("word_mastery", {}).get(card["id"], {}).get("level", 0)
+                    all_cards.append(cp)
+                    break
+        # continue to next card (don't check cp)
+
+    # Batch reveal — all cards shown at once, no per-card reveal needed
+    session["revealed"] = True
+    session["cards_data"] = all_cards  # store full card objects for batch rendering
+
     return {
-        "message": f"📚 VOCAB SESSION STARTED! ({len(cards)} cards)\n{'Topic: ' + (topic or 'mixed')}\n━━━━━━━━━━━━━━━━━━\n\n💡 Type 'vocab_reveal' to see the definition, then 'vocab_rate [again|hard|good|easy]' to rate!",
-        "card": first_card,
-        "card_number": 1,
-        "total_cards": len(cards),
+        "message": f"📚 VOCAB SESSION STARTED! (10 cards)\n{'Topic: ' + (topic or 'mixed')}\n━━━━━━━━━━━━━━━━━━\n\n💡 Rate each card with: vocab_rate [again|hard|good|easy]",
+        "cards": all_cards,
+        "card_number": 0,
+        "total_cards": len(all_cards),
         "stamina": player["stamina"],
         "session_id": f"vocab_{vs['vocab_sessions']}",
     }

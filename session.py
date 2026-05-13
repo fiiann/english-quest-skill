@@ -481,34 +481,59 @@ def cmd_vocab_start(topic: str = None):
 
 
 def cmd_vocab():
-    """Get the current vocab card (without revealing)."""
+    """Get all vocab cards in batch (no reveal step needed)."""
     state = load_state()
     vs = state.get("vocab_state", {})
     session = vs.get("active_vocab_session")
 
     if not session:
-        return {"error": "No active vocab session. Start one with 'vocab_start' or 'vocab'."}
+        return {"error": "No active vocab session. Start one with 'vocab' or 'vocab [topic]'."}
 
-    card = get_current_vocab_card(state)
-    if not card:
-        return {"error": "Session ended. Start a new one with 'vocab'."}
+    if session.get("is_boss"):
+        return cmd_vocab()  # fallback to normal flow for boss
 
-    mastery_emoji = ["🆕", "🔄", "✅", "⭐"][card.get("_mastery_level", 0)]
-
-    # Show just the word (like a flashcard face)
-    msg = f"""📚 VOCAB CARD
+    # Check if batch mode (cards_data present = all cards pre-loaded)
+    cards_data = session.get("cards_data")
+    if not cards_data:
+        # Fallback for old sessions without batch mode
+        card = get_current_vocab_card(state)
+        if not card:
+            return {"error": "Session ended. Start a new one with 'vocab'."}
+        mastery_emoji = ["🆕", "🔄", "✅", "⭐"][card.get("_mastery_level", 0)]
+        msg = f"""📚 VOCAB CARD
 ━━━━━━━━━━━━━━━━━━
 {mastery_emoji} {card['word']} ({card.get('part_of_speech', '')})
 CEFR: {card.get('cefr', 'A1')}
 
 💡 Type 'vocab_reveal' to see the definition!"""
+        return {"feedback": msg, "card": card, "card_number": session["current_index"] + 1, "total_cards": len(session["cards"])}
 
-    return {
-        "feedback": msg,
-        "card": card,
-        "card_number": session["current_index"] + 1,
-        "total_cards": len(session["cards"]),
-    }
+    # Batch mode — build all 10 cards into one message
+    lines = ["📚 VOCAB SESSION — ALL CARDS", "━" * 36]
+
+    mastery_icons = ["🆕", "🔄", "✅", "⭐"]
+    for i, card in enumerate(cards_data):
+        emoji = mastery_icons[card.get("_mastery_level", 0)]
+        word = card.get("word", "")
+        pos = card.get("part_of_speech", "")
+        cefr = card.get("cefr", "")
+        topic = card.get("_topic", "")
+        definition = card.get("definition", "")
+        indonesian = card.get("indonesian", "")
+        phonetic = card.get("phonetic", "")
+
+        lines.append(f"{emoji} {i+1}. {word} ({pos}) {cefr}")
+        lines.append(f"   📖 {definition}")
+        lines.append(f"   🇮🇩 {indonesian}")
+        lines.append(f"   🔊 {phonetic}")
+        lines.append(f"   📁 {topic}")
+        lines.append("")
+
+    lines.append("💡 Rate a card: vocab_rate [again|hard|good|easy] <number>")
+    lines.append(f"   Example: vocab_rate good 3 → rates card #3 as Good")
+    lines.append(f"\n⚡ Stamina: {state['player']['stamina']}/20")
+
+    return {"feedback": "\n".join(lines), "cards": cards_data, "card_number": 0, "total_cards": len(cards_data)}
 
 
 def cmd_vocab_reveal():
@@ -519,8 +544,12 @@ def cmd_vocab_reveal():
     return result
 
 
-def cmd_vocab_rate(rating: str):
-    """Rate the current card: again, hard, good, easy."""
+def cmd_vocab_rate(rating: str, card_num: str = None):
+    """
+    Rate the current or a specific card: again, hard, good, easy.
+    If card_num is provided (1-10), rate that specific card.
+    Otherwise rate the current card (index 0).
+    """
     state = load_state()
     vs = state.get("vocab_state", {})
     session = vs.get("active_vocab_session")
@@ -528,11 +557,20 @@ def cmd_vocab_rate(rating: str):
     if not session:
         return {"error": "No active vocab session. Start one with 'vocab'."}
 
-    # Get current card id
-    if session["current_index"] >= len(session["cards"]):
+    # Determine which card to rate
+    cards_data = session.get("cards_data", [])
+    if cards_data and card_num is not None:
+        try:
+            idx = int(card_num) - 1  # user numbers 1-10
+            if idx < 0 or idx >= len(cards_data):
+                return {"error": f"Card number must be 1-{len(cards_data)}."}
+        except ValueError:
+            return {"error": "Invalid card number. Use 1-10."}
+        card_id = cards_data[idx]["id"]
+    elif session["current_index"] < len(session["cards"]):
+        card_id = session["cards"][session["current_index"]]
+    else:
         return {"error": "Session ended. Start a new one with 'vocab'."}
-
-    card_id = session["cards"][session["current_index"]]
 
     if session.get("is_boss"):
         result = process_vocab_boss_rating(state, card_id, rating)
@@ -543,6 +581,42 @@ def cmd_vocab_rate(rating: str):
         result = rate_vocab_card(state, card_id, rating)
         result["stamina"] = state["player"]["stamina"]
         result["xp"] = state["player"]["xp"]
+
+        # In batch mode, re-render remaining cards + session summary
+        if session.get("cards_data") and session["current_index"] < len(session["cards"]):
+            # Update cards_data mastery levels from updated word_mastery
+            updated_cards = []
+            for c in session["cards_data"]:
+                wm = vs.get("word_mastery", {}).get(c["id"], {})
+                c_copy = dict(c)
+                c_copy["_mastery_level"] = wm.get("level", 0)
+                updated_cards.append(c_copy)
+            session["cards_data"] = updated_cards
+
+            # Show remaining cards + progress
+            rated = session["current_index"]
+            total = len(session["cards"])
+            remaining = [updated_cards[i] for i in range(rated, min(rated + 3, total))]  # show next 3
+
+            lines = [f"✅ Rated: {cards_data[idx]['word']} → {rating.upper()}"]
+            lines.append(f"📊 Progress: {rated}/{total} cards rated")
+            lines.append("")
+            lines.append("📚 REMAINING CARDS:")
+            lines.append("━" * 36)
+
+            for j, card in enumerate(remaining, start=rated + 1):
+                emoji = ["🆕", "🔄", "✅", "⭐"][card.get("_mastery_level", 0)]
+                lines.append(f"{emoji} {j}. {card['word']} ({card.get('part_of_speech', '')}) {card.get('cefr', '')}")
+                lines.append(f"   📖 {card.get('definition', '')}")
+                lines.append(f"   🔊 {card.get('phonetic', '')}")
+                lines.append("")
+
+            lines.append(f"⚡ Stamina: {state['player']['stamina']} | XP: {state['player']['xp']}")
+
+            result["feedback"] = "\n".join(lines)
+            result["remaining"] = remaining
+            result["rated_count"] = rated
+            result["total_cards"] = total
         return result
 
 
@@ -681,9 +755,11 @@ if __name__ == "__main__":
         out = cmd_vocab_reveal()
     elif cmd == "vocab_rate":
         if not args:
-            out = {"error": "Usage: vocab_rate <again|hard|good|easy>"}
+            out = {"error": "Usage: vocab_rate <again|hard|good|easy> [1-10]"}
         else:
-            out = cmd_vocab_rate(args[0])
+            rating = args[0]
+            card_num = args[1] if len(args) > 1 else None
+            out = cmd_vocab_rate(rating, card_num)
     elif cmd == "vocab_stats":
         out = cmd_vocab_stats()
     elif cmd == "vocab_boss":
